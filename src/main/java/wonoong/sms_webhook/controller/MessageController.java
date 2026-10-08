@@ -28,4 +28,34 @@ public class MessageController {
 
         return ResponseEntity.ok().build();
     }
+    @PostMapping("/trip-eleven")
+    public ResponseEntity<Void> receiveTripElevenMessage(
+            @RequestBody ReceivedMessageDto request
+    ) {
+
+        System.out.println("================================");
+        System.out.println("Trip Eleven 메시지 수신");
+        System.out.println("type       = " + request.type());
+        System.out.println("sender     = " + request.sender());
+        System.out.println("body       = " + request.body());
+        System.out.println("receivedAt = " + request.receivedAt());
+        System.out.println("================================");
+
+        return ResponseEntity.ok().build();
+    }
+    @PostMapping("/camfit")
+    public ResponseEntity<Void> receiveCamfitMessage(
+            @RequestBody ReceivedMessageDto request
+    ) {
+
+        System.out.println("================================");
+        System.out.println("Camfit 메시지 수신");
+        System.out.println("type       = " + request.type());
+        System.out.println("sender     = " + request.sender());
+        System.out.println("body       = " + request.body());
+        System.out.println("receivedAt = " + request.receivedAt());
+        System.out.println("================================");
+
+        return ResponseEntity.ok().build();
+    }
 }
