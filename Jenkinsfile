@@ -54,6 +54,7 @@ pipeline {
                       >/dev/null 2>&1 || true
 
                     docker run -d \
+                      --network reserve-network \
                       --name "$APP_CONTAINER" \
                       --restart unless-stopped \
                       --env-file "$DEPLOY_ENV_FILE" \
