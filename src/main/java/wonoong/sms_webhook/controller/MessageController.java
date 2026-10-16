@@ -7,11 +7,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import wonoong.sms_webhook.dto.ReceivedMessageDto;
+import wonoong.sms_webhook.entity.ReservationEvent;
+import wonoong.sms_webhook.service.MessageParsingService;
 
 @RestController
 @RequestMapping("/api/messages")
 @RequiredArgsConstructor
 public class MessageController {
+
+    private final MessageParsingService messageParsingService;
 
     @PostMapping
     public ResponseEntity<Void> receiveMessage(
@@ -57,5 +61,18 @@ public class MessageController {
         System.out.println("================================");
 
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/test")
+    public ResponseEntity<ReservationEvent> parseMessage(
+            @RequestBody ParseMessageRequest request
+    ) {
+        ReservationEvent result =
+                messageParsingService.parse(request.message());
+
+        return ResponseEntity.ok(result);
+    }
+
+    public record ParseMessageRequest(String message) {
     }
 }

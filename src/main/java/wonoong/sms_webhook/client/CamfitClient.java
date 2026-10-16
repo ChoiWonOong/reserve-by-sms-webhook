@@ -9,7 +9,6 @@ import tools.jackson.databind.JsonNode;
 import wonoong.sms_webhook.Config.CamfitProperties;
 import wonoong.sms_webhook.dto.camfit.CamfitLoginRequestDto;
 import wonoong.sms_webhook.dto.camfit.CamfitLoginResponseDto;
-import wonoong.sms_webhook.dto.camfit.CamfitTokenResponseDto;
 
 import java.util.Map;
 
@@ -140,7 +139,7 @@ public class CamfitClient {
         return response.get("scheduleId").toString();
     }
 
-    public void releaseSchedule(String scheduleId, String siteId) {
+    public String releaseSchedule(String scheduleId, String siteId) {
         String accessToken = redisTemplate.opsForValue()
                 .get(ACCESS_TOKEN_KEY);
 
@@ -150,13 +149,13 @@ public class CamfitClient {
             );
         }
 
-        restClient.delete()
+        return restClient.delete()
                 .uri(uriBuilder -> uriBuilder
                         .path("/schedules/{scheduleId}")
                         .queryParam("siteId", siteId)
                         .build(scheduleId))
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .toBodilessEntity();
+                .toBodilessEntity().toString();
     }
 }

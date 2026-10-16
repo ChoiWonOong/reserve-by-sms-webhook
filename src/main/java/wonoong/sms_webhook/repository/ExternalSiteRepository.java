@@ -19,4 +19,8 @@ public interface ExternalSiteRepository extends JpaRepository<ExternalSite, Long
             Platform platform,
             String externalSiteId
     );
+    Optional<ExternalSite> findByPlatformAndExternalSiteNameAndActiveTrue(
+            Platform platform,
+            String externalSiteName
+    );
 }

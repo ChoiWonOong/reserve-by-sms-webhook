@@ -1,7 +1,5 @@
 package wonoong.sms_webhook.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -24,7 +22,6 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,7 +31,6 @@ public class TripElevenClient {
     private final RestClient restClient;
     private final StringRedisTemplate redisTemplate;
     private static final String SESSION_KEY = "trip-eleven:session:{accommodationId}";
-    private final ObjectMapper objectMapper;
 
     public TripElevenClient(
             TripElevenProperties properties,
@@ -43,7 +39,6 @@ public class TripElevenClient {
     ) {
         this.properties = properties;
         this.restClient = restClient;
-        this.objectMapper = new ObjectMapper();
         this.redisTemplate = redisTemplate;
     }
 

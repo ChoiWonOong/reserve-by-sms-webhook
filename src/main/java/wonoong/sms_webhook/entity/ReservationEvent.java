@@ -9,6 +9,8 @@ public record ReservationEvent(
         String externalSiteName,
         LocalDate checkInDate,
         LocalDate checkOutDate,
-        int nights
+        int nights,
+        String customerName,
+        String customerPhone
 ) {
 }
