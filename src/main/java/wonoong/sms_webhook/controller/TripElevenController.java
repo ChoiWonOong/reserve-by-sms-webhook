@@ -2,10 +2,9 @@ package wonoong.sms_webhook.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import wonoong.sms_webhook.dto.tripEleven.TripElevenBlockRequestDto;
+import wonoong.sms_webhook.dto.tripEleven.TripElevenRoomStateRequestDto;
 import wonoong.sms_webhook.service.TripElevenService;
 
 @RestController
@@ -37,4 +36,22 @@ public class TripElevenController {
                 tripElevenService.syncToday().html()
         );
     }
+    @PostMapping("/block")
+    public ResponseEntity<String> block(
+            @RequestBody TripElevenBlockRequestDto request
+    ) throws Exception {
+        return ResponseEntity.ok(
+                tripElevenService.blockRoomDate(request)
+        );
+    }
+
+    @PostMapping("/unblock")
+    public ResponseEntity<String> unblock(
+            @RequestBody TripElevenRoomStateRequestDto request
+    ) throws Exception {
+        return ResponseEntity.ok(
+                tripElevenService.unblockRoomDate(request)
+        );
+    }
+/**/
 }

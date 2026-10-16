@@ -1,5 +1,7 @@
 package wonoong.sms_webhook.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -19,8 +21,10 @@ import wonoong.sms_webhook.dto.tripEleven.TripElevenReservationDto;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,6 +34,7 @@ public class TripElevenClient {
     private final RestClient restClient;
     private final StringRedisTemplate redisTemplate;
     private static final String SESSION_KEY = "trip-eleven:session:{accommodationId}";
+    private final ObjectMapper objectMapper;
 
     public TripElevenClient(
             TripElevenProperties properties,
@@ -38,6 +43,7 @@ public class TripElevenClient {
     ) {
         this.properties = properties;
         this.restClient = restClient;
+        this.objectMapper = new ObjectMapper();
         this.redisTemplate = redisTemplate;
     }
 
@@ -288,5 +294,64 @@ public class TripElevenClient {
         }
 
         return 0;
+    }
+    private String updateRoomState(
+            MultiValueMap<String, String> formData
+    ) {
+        String sessionId = getSessionId();
+
+        return restClient.post()
+                .uri("/partner/room_control/room_state_save_submit/")
+                .header(HttpHeaders.COOKIE, "sessionid=" + sessionId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(formData)
+                .retrieve()
+                .body(String.class);
+    }
+    public String blockRoomDate(
+            String bid,
+            String roomId,
+            LocalDate date,
+            String reason,
+            String reasonText
+    ) {
+        String dateString = date.toString();
+
+        String roomControlData = """
+            [{"base_date":"%s","room_id":"%s"}]
+            """.formatted(dateString, roomId).trim();
+
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("bid", bid);
+        formData.add("room_id", roomId);
+        formData.add("room_kind", "5");
+        formData.add("select_date", dateString);
+        formData.add("room_control_data", roomControlData);
+        formData.add("close_state", reason);
+        formData.add("close_state_text", reasonText);
+
+        return updateRoomState(formData);
+    }
+    public String unblockRoomDate(
+            String bid,
+            String roomId,
+            LocalDate date
+    ) {
+        String dateString = date.toString();
+
+        String roomControlData = """
+            [{"base_date":"%s","room_id":"%s"}]
+            """.formatted(dateString, roomId).trim();
+
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+
+        formData.add("bid", bid);
+        formData.add("room_id", roomId);
+        formData.add("room_control_data", roomControlData);
+        formData.add("select_date", dateString);
+        formData.add("room_kind", "1");
+        formData.add("page", "1");
+
+        return updateRoomState(formData);
     }
 }
