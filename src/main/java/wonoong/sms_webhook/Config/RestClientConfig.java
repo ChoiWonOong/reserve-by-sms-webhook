@@ -23,6 +23,7 @@ public class RestClientConfig {
     public RestClient camfitRestClient() {
         return RestClient.builder()
                 .baseUrl(camfitBaseUrl)
+                .defaultHeader("User-Agent", "Application")
                 .build();
     }
 }

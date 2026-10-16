@@ -1,4 +1,4 @@
-package wonoong.sms_webhook.dto.site;
+package wonoong.sms_webhook.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
