@@ -37,7 +37,7 @@ public class MessageController {
             @RequestBody ReceivedMessageDto request
     ) {
 
-        System.out.println("================================");
+        System.out.println("=================================");
         System.out.println("Trip Eleven 메시지 수신");
         System.out.println("type       = " + request.type());
         System.out.println("sender     = " + request.sender());
