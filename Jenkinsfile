@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -9,8 +10,8 @@ pipeline {
     environment {
         APP_IMAGE = 'reserve-by-sms-webhook'
         APP_CONTAINER = 'reserve-by-sms-webhook'
-        APP_PORT = '8081'
         DEPLOY_ENV_FILE = '/opt/reserve-by-sms-webhook/.env'
+        COMPOSE_FILE = 'compose.yaml'
     }
 
     stages {
@@ -32,10 +33,11 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker build \
-                      -t "$APP_IMAGE:$BUILD_NUMBER" \
-                      -t "$APP_IMAGE:latest" \
-                      .
+                    set -eu
+
+                    docker compose \
+                      -f "$COMPOSE_FILE" \
+                      build app
                 '''
             }
         }
@@ -50,23 +52,25 @@ pipeline {
                       exit 1
                     }
 
+                    docker network inspect reserve-network \
+                      >/dev/null 2>&1 || \
+                      docker network create reserve-network
+
+                    # 기존 docker run 방식으로 실행한 컨테이너와의
+                    # 최초 전환 시 이름 충돌을 방지한다.
                     docker rm -f "$APP_CONTAINER" \
                       >/dev/null 2>&1 || true
 
-                    docker run -d \
-                      --network reserve-network \
-                      --name "$APP_CONTAINER" \
-                      --restart unless-stopped \
-                      --env-file "$DEPLOY_ENV_FILE" \
-                      -p "$APP_PORT:8080" \
-                      "$APP_IMAGE:$BUILD_NUMBER"
+                    docker compose \
+                      -f "$COMPOSE_FILE" \
+                      up -d --force-recreate
 
                     sleep 10
 
                     if [ "$(docker inspect \
                       --format '{{.State.Running}}' "$APP_CONTAINER")" != "true" ]; then
-                      docker logs --tail=100 "$APP_CONTAINER" || true
-                      exit 1
+                        docker logs --tail=100 "$APP_CONTAINER" || true
+                        exit 1
                     fi
 
                     echo "Container is running"

@@ -1,0 +1,16 @@
+services:
+  app:
+    image: reserve-by-sms-webhook:${BUILD_NUMBER:-latest}
+    container_name: reserve-by-sms-webhook
+    restart: unless-stopped
+    env_file:
+      - /opt/reserve-by-sms-webhook/.env
+    ports:
+      - "8081:8080"
+    networks:
+      - reserve-network
+
+networks:
+  reserve-network:
+    name: reserve-network
+    external: true
