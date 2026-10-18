@@ -1,3 +1,4 @@
+
 package wonoong.sms_webhook.service;
 
 import lombok.RequiredArgsConstructor;
@@ -5,9 +6,7 @@ import org.jsoup.nodes.Document;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import wonoong.sms_webhook.client.TripElevenClient;
-import wonoong.sms_webhook.dto.tripEleven.TripElevenBlockRequestDto;
 import wonoong.sms_webhook.dto.tripEleven.TripElevenReservationDto;
-import wonoong.sms_webhook.dto.tripEleven.TripElevenRoomStateRequestDto;
 
 import java.util.List;
 
@@ -19,28 +18,6 @@ public class TripElevenService {
     private final StringRedisTemplate redisTemplate;
 
     private static final String KEY_PREFIX = "trip-eleven:session:";
-
-    public String blockRoomDate(TripElevenBlockRequestDto request)
-            throws Exception {
-
-        return tripElevenClient.blockRoomDate(
-                request.bid(),
-                request.roomId(),
-                request.date(),
-                request.reason(),
-                request.reasonText()
-        );
-    }
-
-    public String unblockRoomDate(TripElevenRoomStateRequestDto request)
-            throws Exception {
-
-        return tripElevenClient.unblockRoomDate(
-                request.bid(),
-                request.roomId(),
-                request.date()
-        );
-    }
 
     public void save(Long accommodationId, String sessionId) {
         redisTemplate.opsForValue().set(
@@ -62,7 +39,6 @@ public class TripElevenService {
     }
 
     public void sync(String date) {
-        // Daily
         Document dailyPage =
                 tripElevenClient.getDailyReservations(date);
 
@@ -70,7 +46,6 @@ public class TripElevenService {
                 tripElevenClient.parseDailyReservations(dailyPage);
 
         for (TripElevenReservationDto reservation : reservations) {
-
             Document detailPage =
                     tripElevenClient.getReservationDetail(
                             reservation.getReservationId()
@@ -81,13 +56,6 @@ public class TripElevenService {
         }
     }
 
-    //    public List<TripElevenReservationDto> syncToday() {
-//
-//        Document dailyPage =
-//                tripElevenClient.getTodayReservation();
-//
-//        return tripElevenClient.parseDailyReservations(dailyPage);
-//    }
     public Document syncToday() {
         return tripElevenClient.getTodayReservation();
     }

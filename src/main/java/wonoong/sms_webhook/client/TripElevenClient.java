@@ -1,5 +1,6 @@
 package wonoong.sms_webhook.client;
 
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Component
 public class TripElevenClient {
     private final TripElevenProperties properties;
@@ -324,8 +326,9 @@ public class TripElevenClient {
         formData.add("room_control_data", roomControlData);
         formData.add("close_state", reason);
         formData.add("close_state_text", reasonText);
-
-        return updateRoomState(formData);
+        String result = updateRoomState(formData);
+        log.info("{}", result);
+        return result;
     }
     public String unblockRoomDate(
             String bid,

@@ -36,22 +36,4 @@ public class TripElevenController {
                 tripElevenService.syncToday().html()
         );
     }
-    @PostMapping("/block")
-    public ResponseEntity<String> block(
-            @RequestBody TripElevenBlockRequestDto request
-    ) throws Exception {
-        return ResponseEntity.ok(
-                tripElevenService.blockRoomDate(request)
-        );
-    }
-
-    @PostMapping("/unblock")
-    public ResponseEntity<String> unblock(
-            @RequestBody TripElevenRoomStateRequestDto request
-    ) throws Exception {
-        return ResponseEntity.ok(
-                tripElevenService.unblockRoomDate(request)
-        );
-    }
-/**/
 }

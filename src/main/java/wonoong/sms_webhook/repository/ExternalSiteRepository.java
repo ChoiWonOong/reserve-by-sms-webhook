@@ -15,12 +15,12 @@ public interface ExternalSiteRepository extends JpaRepository<ExternalSite, Long
             Platform platform
     );
 
-    Optional<ExternalSite> findByPlatformAndExternalSiteId(
+    Optional<ExternalSite> findByPlatformAndExternalSiteNameAndActiveIsTrue(
             Platform platform,
             String externalSiteId
     );
-    Optional<ExternalSite> findByPlatformAndExternalSiteNameAndActiveTrue(
-            Platform platform,
-            String externalSiteName
+    Optional<ExternalSite> findBySite_IdAndPlatformAndActiveTrue(
+            Long siteId,
+            Platform platform
     );
 }
