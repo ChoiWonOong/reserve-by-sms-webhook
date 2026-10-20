@@ -5,18 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import wonoong.sms_webhook.client.CamfitClient;
 import wonoong.sms_webhook.client.TripElevenClient;
-import wonoong.sms_webhook.entity.ExternalSite;
-import wonoong.sms_webhook.entity.Platform;
-import wonoong.sms_webhook.entity.Reservation;
-import wonoong.sms_webhook.entity.ReservationEvent;
-import wonoong.sms_webhook.entity.ReservationEventType;
+import wonoong.sms_webhook.entity.*;
 import wonoong.sms_webhook.repository.ExternalSiteRepository;
 import wonoong.sms_webhook.repository.ReservationRepository;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -75,15 +69,23 @@ public class ReservationService {
             reservation.setSyncStatus(SUCCESS);
 
         } catch (Exception e) {
-            reservation.setSyncStatus(FAILED);
-            reservationRepository.saveAndFlush(reservation);
+        reservation.setSyncStatus(FAILED);
+        reservationRepository.saveAndFlush(reservation);
 
-            throw new IllegalStateException(
-                    "예약 동기화에 실패했습니다. reservationId="
-                            + event.reservationId(),
-                    e
-            );
-        }
+        log.error(
+                "예약 동기화 실패: platform={}, reservationId={}, eventType={}",
+                event.platform(),
+                event.reservationId(),
+                event.eventType(),
+                e
+        );
+
+        throw new IllegalStateException(
+                "예약 동기화에 실패했습니다. reservationId="
+                        + event.reservationId(),
+                e
+        );
+    }
 
         return reservationRepository.saveAndFlush(reservation);
     }

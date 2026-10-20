@@ -32,13 +32,15 @@ public class CamfitMessageParser implements MessageParser {
             );
 
     // 입실일자 : 2026/10/31 ~ 2026/11/1 (1박)
-    private static final Pattern DATE_PATTERN =
-            Pattern.compile(
-                    "입실일자\\s*:\\s*" +
-                            "(\\d{4})/(\\d{1,2})/(\\d{1,2})\\s*~\\s*" +
-                            "(\\d{4})/(\\d{1,2})/(\\d{1,2})\\s*" +
-                            "\\((\\d+)박\\)"
-            );
+    private static final Pattern DATE_PATTERN = Pattern.compile(
+            "(?:입실일자|예약일자)\\s*:\\s*" +
+                    "(\\d{4})/(\\d{1,2})/(\\d{1,2})" +
+                    "(?:\\s+\\d+시\\s+\\d+분)?" +
+                    "\\s*~\\s*" +
+                    "(\\d{4})/(\\d{1,2})/(\\d{1,2})" +
+                    "(?:\\s+\\d+시\\s+\\d+분)?" +
+                    "\\s*\\((\\d+)박\\)"
+    );
 
     @Override
     public boolean supports(String message) {
@@ -101,7 +103,6 @@ public class CamfitMessageParser implements MessageParser {
         );
 
         int nights = Integer.parseInt(dateMatcher.group(7));
-
         if (nights <= 0 || !checkOutDate.isAfter(checkInDate)) {
             throw new IllegalArgumentException(
                     "입실일, 퇴실일 또는 숙박 일수가 올바르지 않습니다."
@@ -112,7 +113,8 @@ public class CamfitMessageParser implements MessageParser {
 
         if (message.contains("신규 예약이 성사되었습니다.")) {
             eventType = ReservationEventType.RESERVED;
-        } else if (message.contains("예약이 취소되었습니다.")) {
+        } else if (message.contains("예약이 취소되었습니다.")||
+        message.contains("전자결제 예약취소 알림")) {
             eventType = ReservationEventType.CANCELLED;
         } else {
             throw new IllegalArgumentException(
