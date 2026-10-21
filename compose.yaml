@@ -39,6 +39,10 @@ services:
       retries: 10
     networks:
       - reserve-network
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
 
   redis:
     image: redis:7
