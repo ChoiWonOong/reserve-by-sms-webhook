@@ -5,18 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import wonoong.sms_webhook.client.CamfitClient;
 import wonoong.sms_webhook.client.TripElevenClient;
-import wonoong.sms_webhook.entity.ExternalSite;
-import wonoong.sms_webhook.entity.Platform;
-import wonoong.sms_webhook.entity.Reservation;
-import wonoong.sms_webhook.entity.ReservationEvent;
-import wonoong.sms_webhook.entity.ReservationEventType;
+import wonoong.sms_webhook.entity.*;
 import wonoong.sms_webhook.repository.ExternalSiteRepository;
 import wonoong.sms_webhook.repository.ReservationRepository;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -61,16 +55,49 @@ public class ReservationService {
             reservation.setSyncStatus(PENDING);
             reservationRepository.saveAndFlush(reservation);
 
+            // 예약이 들어온 플랫폼의 객실 매핑 조회
+            ExternalSite sourceSite = externalSiteRepository
+                    .findByPlatformAndExternalSiteNameAndActiveTrue(
+                            event.platform(),
+                            event.externalSiteName()
+                    )
+                    .orElseThrow(() -> new IllegalStateException(
+                            "외부 객실 매핑을 찾을 수 없습니다. platform="
+                                    + event.platform()
+                                    + ", externalSiteName="
+                                    + event.externalSiteName()
+                    ));
+
+            Platform targetPlatform;
+
             if (event.platform() == Platform.CAMFIT) {
-                blockTripEleven(event, reservation);
+                targetPlatform = Platform.TRIP_ELEVEN;
             } else if (event.platform() == Platform.TRIP_ELEVEN) {
-                blockCamfit(event, reservation);
+                targetPlatform = Platform.CAMFIT;
             } else {
                 throw new IllegalArgumentException(
                         "지원하지 않는 플랫폼입니다: " + event.platform()
                 );
             }
 
+            // 같은 내부 Site에 반대 플랫폼 객실이 있는지 확인
+            boolean targetExists = sourceSite.getSite()
+                    .getExternalSites()
+                    .stream()
+                    .anyMatch(externalSite ->
+                            externalSite.getPlatform() == targetPlatform
+                                    && externalSite.isActive()
+                    );
+
+            if (targetExists) {
+                if (event.platform() == Platform.CAMFIT) {
+                    blockTripEleven(event, reservation);
+                } else {
+                    blockCamfit(event, reservation);
+                }
+            }
+
+            // 반대 플랫폼 객실이 없어도 동기화할 필요가 없다면 성공 처리
             reservation.setEventType(event.eventType());
             reservation.setSyncStatus(SUCCESS);
 
@@ -126,7 +153,7 @@ public class ReservationService {
         log.info("Camfit 차단 요청: siteId={}", target.getExternalSiteId());
 
         String scheduleId = camfitClient.blockSchedule(
-                target.getExternalSiteId(),
+                siteId,
                 startTimestamp,
                 endTimestamp,
                 title
@@ -275,7 +302,7 @@ public class ReservationService {
             Platform targetPlatform
     ) {
         ExternalSite source = externalSiteRepository
-                .findByPlatformAndExternalSiteNameAndActiveIsTrue(
+                .findByPlatformAndExternalSiteNameAndActiveTrue(
                         sourcePlatform,
                         sourceExternalSiteName
                 )
