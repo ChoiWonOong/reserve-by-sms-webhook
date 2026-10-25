@@ -12,7 +12,7 @@ services:
       - "8081:8080"
     # Spring 로그 파일을 호스트에 저장
     volumes:
-      - ./logs:/app/logs
+      - /opt/reserve-by-sms-webhook/logs:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
@@ -20,3 +20,57 @@ services:
         condition: service_healthy
     networks:
       - reserve-network
+
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "127.0.0.1:3306:3306"
+    container_name: reserve-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: stayon
+      MYSQL_USER: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - reserve-network
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:6379:6379"
+    container_name: reserve-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    command:
+      - sh
+      - -c
+      - 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - reserve-network
+
+networks:
+  reserve-network:
+    name: reserve-network
+
+volumes:
+  mysql-data:
+  redis-data:
