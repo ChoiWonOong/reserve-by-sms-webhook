@@ -57,6 +57,6 @@ public class MessageService {
             );
         }
 
-        return matched.get(0).parse(message);
+        return matched.getFirst().parse(message);
     }
 }
