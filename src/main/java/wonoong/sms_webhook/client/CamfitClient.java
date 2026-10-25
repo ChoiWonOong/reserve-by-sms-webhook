@@ -93,9 +93,9 @@ public class CamfitClient {
         System.out.println("Refresh token exists: "
                 + (refreshToken != null && !refreshToken.isBlank()));
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new IllegalStateException(
-                    "Redis에 Camfit Refresh Token이 없습니다."
-            );
+            log.info("Camfit Refresh Token이 없습니다. 로그인을 시도합니다.");
+            login(camfitProperties.getUsername(), camfitProperties.getPassword());
+            return;
         }
 
         JsonNode response = restClient.post()
@@ -133,7 +133,31 @@ public class CamfitClient {
         redisTemplate.opsForValue()
                 .set(REFRESH_TOKEN_KEY, refreshToken);
     }
+    private void refreshOrLogin() {
+        String refreshToken = redisTemplate.opsForValue()
+                .get(REFRESH_TOKEN_KEY);
 
+        if (refreshToken == null || refreshToken.isBlank()) {
+            login(camfitProperties.getUsername(), camfitProperties.getPassword());
+            return;
+        }
+
+        try {
+            refreshToken();
+        } catch (HttpClientErrorException.Forbidden e) {
+            String responseBody = e.getResponseBodyAsString();
+
+            if (responseBody.contains("\"code\": \"REFRESH_TOKEN_INVALID\"")) {
+
+                log.warn("Camfit Refresh Token이 유효하지 않습니다. 재로그인합니다.");
+
+                login(camfitProperties.getUsername(), camfitProperties.getPassword());
+                return;
+            }
+
+            throw e;
+        }
+    }
     public String blockSchedule(
             String siteId,
             long startTimestamp,
@@ -158,7 +182,7 @@ public class CamfitClient {
         } catch (HttpClientErrorException.Unauthorized e) {
             log.warn("Camfit Access Token 만료. 토큰 갱신 후 재시도합니다.");
 
-            refreshToken();
+            refreshOrLogin();
 
             // 갱신된 토큰으로 한 번만 재시도
             String refreshedAccessToken = getAccessToken();
@@ -201,15 +225,23 @@ public class CamfitClient {
     }
 
     public String releaseSchedule(String scheduleId, String siteId) {
-        String accessToken = redisTemplate.opsForValue()
-                .get(ACCESS_TOKEN_KEY);
+        try {
+            return executeReleaseSchedule(scheduleId, siteId, getAccessToken());
+        } catch (HttpClientErrorException.Unauthorized e) {
+            log.info("Camfit Access Token이 만료되었습니다. 토큰을 갱신합니다.");
 
-        if (accessToken == null || accessToken.isBlank()) {
-            throw new IllegalStateException(
-                    "캠핏 Access Token이 없습니다. 로그인이 필요합니다."
-            );
+            refreshOrLogin();
+
+            // 새 토큰으로 한 번 재시도
+            return executeReleaseSchedule(scheduleId, siteId, getAccessToken());
         }
+    }
 
+    private String executeReleaseSchedule(
+            String scheduleId,
+            String siteId,
+            String accessToken
+    ) {
         return restClient.delete()
                 .uri(uriBuilder -> uriBuilder
                         .path("/schedules/{scheduleId}")
@@ -217,6 +249,7 @@ public class CamfitClient {
                         .build(scheduleId))
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .toBodilessEntity().toString();
+                .toBodilessEntity()
+                .toString();
     }
 }

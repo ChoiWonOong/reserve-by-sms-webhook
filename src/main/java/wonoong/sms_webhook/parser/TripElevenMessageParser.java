@@ -1,3 +1,4 @@
+
 package wonoong.sms_webhook.parser;
 
 import org.springframework.stereotype.Component;
@@ -16,10 +17,13 @@ public class TripElevenMessageParser implements MessageParser {
     private static final String RESERVATION_TITLE =
             "[가평 하이몽글램핑&캠핑-예약완료]";
 
-    // 예: 10166132 / 김소민 (01057148587)
+    private static final String CANCELLATION_TITLE =
+            "-취소접수완료]";
+
+    // 예약 문자
     private static final Pattern RESERVATION_INFO_PATTERN =
             Pattern.compile(
-                    "(?m)^\\s*(\\d+)\\s*/\\s*(.+?)\\s*\\((\\d{9,11})\\)\\s*$"
+                    "(?m)^\\s*(\\d+)\\s*/\\s*(.+?)(?:\\s*\\((\\d{9,11})\\))?\\s*$"
             );
 
     private static final Pattern SITE_NAME_PATTERN =
@@ -31,13 +35,22 @@ public class TripElevenMessageParser implements MessageParser {
             Pattern.compile(
                     "입실일\\s*:\\s*" +
                             "(\\d{4}-\\d{2}-\\d{2})" +
-                            "\\([^)]*\\)\\s*/\\s*(\\d+)박"
+                            "\\s*\\([^)]*\\)\\s*/\\s*(\\d+)박"
             );
 
     @Override
     public boolean supports(String message) {
-        return message != null
-                && message.contains(RESERVATION_TITLE)
+        if (message == null) {
+            return false;
+        }
+
+        boolean isReservation =
+                message.contains(RESERVATION_TITLE);
+
+        boolean isCancellation =
+                message.contains(CANCELLATION_TITLE);
+
+        return (isReservation || isCancellation)
                 && message.contains("객실명")
                 && message.contains("입실일");
     }
@@ -46,16 +59,21 @@ public class TripElevenMessageParser implements MessageParser {
     public ReservationEvent parse(String message) {
         if (!supports(message)) {
             throw new IllegalArgumentException(
-                    "트립일레븐 예약 문자 형식이 아닙니다."
+                    "트립일레븐 예약 또는 취소 문자 형식이 아닙니다."
             );
         }
+
+        ReservationEventType eventType =
+                message.contains(CANCELLATION_TITLE)
+                        ? ReservationEventType.CANCELLED
+                        : ReservationEventType.RESERVED;
 
         Matcher reservationMatcher =
                 RESERVATION_INFO_PATTERN.matcher(message);
 
         if (!reservationMatcher.find()) {
             throw new IllegalArgumentException(
-                    "예약번호, 예약자 또는 전화번호를 추출할 수 없습니다."
+                    "예약번호 또는 예약자 정보를 추출할 수 없습니다."
             );
         }
 
@@ -94,7 +112,7 @@ public class TripElevenMessageParser implements MessageParser {
 
         return new ReservationEvent(
                 Platform.TRIP_ELEVEN,
-                ReservationEventType.RESERVED,
+                eventType,
                 reservationId,
                 siteName,
                 checkInDate,

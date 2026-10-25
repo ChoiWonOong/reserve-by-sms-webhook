@@ -45,7 +45,6 @@ public class TripElevenClient {
     }
 
     public void login() {
-
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
 
         formData.add("provider_id", "1");
@@ -59,25 +58,28 @@ public class TripElevenClient {
                 .retrieve()
                 .toEntity(String.class);
 
-        System.out.println("Status: " + response.getStatusCode());
-        System.out.println("Headers: " + response.getHeaders());
-        System.out.println("Body: " + response.getBody());
+        log.info("TripEleven 로그인 응답 상태: {}", response.getStatusCode());
 
         List<String> setCookies = response.getHeaders()
                 .get(HttpHeaders.SET_COOKIE);
 
         if (setCookies == null || setCookies.isEmpty()) {
             throw new IllegalStateException(
-                    "TripEleven Set-Cookie를 받지 못했습니다."
+                    "TripEleven 로그인 응답에 Set-Cookie가 없습니다."
             );
         }
 
         String sessionId = extractSessionId(setCookies);
 
-        redisTemplate.opsForValue().set(
-                SESSION_KEY,
-                sessionId
-        );
+        if (sessionId.isBlank()) {
+            throw new IllegalStateException(
+                    "TripEleven sessionid가 비어 있습니다."
+            );
+        }
+
+        redisTemplate.opsForValue().set(SESSION_KEY, sessionId);
+
+        log.info("TripEleven sessionid를 Redis에 저장했습니다.");
     }
 
     private String md5(String value) {
@@ -106,7 +108,7 @@ public class TripElevenClient {
 
         String sessionId = redisTemplate.opsForValue().get(SESSION_KEY);
 
-        if (sessionId == null) {
+        if (sessionId == null || sessionId.isBlank()) {
             login();
 
             sessionId = redisTemplate.opsForValue().get(SESSION_KEY);
@@ -295,15 +297,54 @@ public class TripElevenClient {
     private String updateRoomState(
             MultiValueMap<String, String> formData
     ) {
-        String sessionId = getSessionId();
+        return executeUpdateRoomState(formData, getSessionId());
+    }
 
-        return restClient.post()
+    private String executeUpdateRoomState(
+            MultiValueMap<String, String> formData,
+            String sessionId
+    ) {
+        String result = restClient.post()
                 .uri("/partner/room_control/room_state_save_submit/")
                 .header(HttpHeaders.COOKIE, "sessionid=" + sessionId)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(formData)
                 .retrieve()
                 .body(String.class);
+
+        if (isSessionExpired(result)) {
+            log.warn("TripEleven 세션이 만료되었습니다. 재로그인합니다.");
+
+            redisTemplate.delete(SESSION_KEY);
+            login();
+
+            String newSessionId = getSessionId();
+
+            result = restClient.post()
+                    .uri("/partner/room_control/room_state_save_submit/")
+                    .header(HttpHeaders.COOKIE, "sessionid=" + newSessionId)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(formData)
+                    .retrieve()
+                    .body(String.class);
+
+            if (isSessionExpired(result)) {
+                throw new IllegalStateException(
+                        "TripEleven 재로그인 후에도 세션이 유효하지 않습니다."
+                );
+            }
+        }
+
+        return result;
+    }
+
+    private boolean isSessionExpired(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return false;
+        }
+
+        return responseBody.contains("/partner/login/")
+                || responseBody.contains("로그인");
     }
     public String blockRoomDate(
             String bid,

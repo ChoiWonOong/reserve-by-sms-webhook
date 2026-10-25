@@ -102,15 +102,23 @@ public class ReservationService {
             reservation.setSyncStatus(SUCCESS);
 
         } catch (Exception e) {
-            reservation.setSyncStatus(FAILED);
-            reservationRepository.saveAndFlush(reservation);
+        reservation.setSyncStatus(FAILED);
+        reservationRepository.saveAndFlush(reservation);
 
-            throw new IllegalStateException(
-                    "예약 동기화에 실패했습니다. reservationId="
-                            + event.reservationId(),
-                    e
-            );
-        }
+        log.error(
+                "예약 동기화 실패: platform={}, reservationId={}, eventType={}",
+                event.platform(),
+                event.reservationId(),
+                event.eventType(),
+                e
+        );
+
+        throw new IllegalStateException(
+                "예약 동기화에 실패했습니다. reservationId="
+                        + event.reservationId(),
+                e
+        );
+    }
 
         return reservationRepository.saveAndFlush(reservation);
     }
