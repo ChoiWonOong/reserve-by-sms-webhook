@@ -57,8 +57,26 @@ public class ReservationService {
 
             if (event.platform() == Platform.CAMFIT) {
                 blockTripEleven(event, reservation);
+
             } else if (event.platform() == Platform.TRIP_ELEVEN) {
-                blockCamfit(event, reservation);
+
+                ExternalSite target = findLinkedExternalSiteOrNull(
+                        Platform.TRIP_ELEVEN,
+                        event.externalSiteName(),
+                        Platform.CAMFIT
+                );
+
+                if (target == null) {
+                    // 대상 CAMFIT 매핑이 없는 펜션 예약은 내부 예약만 저장한다.
+                    log.info(
+                            "CAMFIT 매핑이 없어 내부 예약만 저장합니다: reservationId={}, siteName={}",
+                            event.reservationId(),
+                            event.externalSiteName()
+                    );
+                } else {
+                    blockCamfit(event, reservation);
+                }
+
             } else {
                 throw new IllegalArgumentException(
                         "지원하지 않는 플랫폼입니다: " + event.platform()
@@ -202,11 +220,35 @@ public class ReservationService {
                                 + event.reservationId()
                 ));
 
+        // 이미 정상 취소된 예약이면 중복 처리하지 않음
         if (reservation.getEventType() == ReservationEventType.CANCELLED
                 && SUCCESS.equals(reservation.getSyncStatus())) {
             return reservation;
         }
 
+        /*
+         * 외부 플랫폼 차단 정보가 없는 예약은
+         * 내부 reservation 데이터만 취소 처리
+         */
+        if (reservation.getPlatform() == Platform.TRIP_ELEVEN
+                && (reservation.getExternalSiteId() == null
+                || reservation.getExternalSiteId().isBlank())
+                && (reservation.getScheduleId() == null
+                || reservation.getScheduleId().isBlank())) {
+
+            reservation.setEventType(ReservationEventType.CANCELLED);
+            reservation.setSyncStatus(SUCCESS);
+
+            log.info(
+                    "내부 예약 취소 완료: platform={}, reservationId={}",
+                    reservation.getPlatform(),
+                    reservation.getReservationId()
+            );
+
+            return reservationRepository.saveAndFlush(reservation);
+        }
+
+        // 기존 외부 플랫폼 취소 로직
         try {
             String externalSiteId = reservation.getExternalSiteId();
 
@@ -217,7 +259,6 @@ public class ReservationService {
             }
 
             if (reservation.getPlatform() == Platform.TRIP_ELEVEN) {
-                // TripEleven 예약으로 생성한 Camfit 차단 해제
                 if (reservation.getScheduleId() == null
                         || reservation.getScheduleId().isBlank()) {
                     throw new IllegalStateException(
@@ -231,7 +272,6 @@ public class ReservationService {
                 );
 
             } else if (reservation.getPlatform() == Platform.CAMFIT) {
-                // Camfit 예약으로 생성한 TripEleven 차단 해제
                 for (LocalDate date = reservation.getCheckInDate();
                      date.isBefore(reservation.getCheckOutDate());
                      date = date.plusDays(1)) {
@@ -256,6 +296,13 @@ public class ReservationService {
         } catch (Exception e) {
             reservation.setSyncStatus(FAILED);
             reservationRepository.saveAndFlush(reservation);
+
+            log.error(
+                    "예약 취소 동기화 실패: platform={}, reservationId={}",
+                    event.platform(),
+                    event.reservationId(),
+                    e
+            );
 
             throw new IllegalStateException(
                     "예약 취소 동기화에 실패했습니다. reservationId="
@@ -298,5 +345,30 @@ public class ReservationService {
                         "대상 사이트 매핑을 찾을 수 없습니다: "
                                 + targetPlatform + " / siteId=" + siteId
                 ));
+    }
+    private ExternalSite findLinkedExternalSiteOrNull(
+            Platform sourcePlatform,
+            String sourceExternalSiteName,
+            Platform targetPlatform
+    ) {
+        var sourceOptional =
+                externalSiteRepository
+                        .findByPlatformAndExternalSiteNameAndActiveIsTrue(
+                                sourcePlatform,
+                                sourceExternalSiteName
+                        );
+
+        if (sourceOptional.isEmpty()) {
+            return null;
+        }
+
+        Long siteId = sourceOptional.get().getSite().getId();
+
+        return externalSiteRepository
+                .findBySite_IdAndPlatformAndActiveTrue(
+                        siteId,
+                        targetPlatform
+                )
+                .orElse(null);
     }
 }

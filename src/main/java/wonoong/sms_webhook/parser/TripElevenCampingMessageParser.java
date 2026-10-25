@@ -12,13 +12,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
-public class TripElevenMessageParser implements MessageParser {
+public class TripElevenCampingMessageParser implements MessageParser {
 
     private static final String RESERVATION_TITLE =
             "[가평 하이몽글램핑&캠핑-예약완료]";
 
     private static final String CANCELLATION_TITLE =
-            "-취소접수완료]";
+            "[가평 하이몽글램핑&캠핑-취소접수완료]";
 
     // 예약 문자
     private static final Pattern RESERVATION_INFO_PATTERN =

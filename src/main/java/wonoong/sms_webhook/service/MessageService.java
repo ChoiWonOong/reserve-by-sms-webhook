@@ -48,7 +48,9 @@ public class MessageService {
                 .toList();
 
         if (matched.isEmpty()) {
-            return null;
+            throw new IllegalArgumentException(
+                    "지원하지 않는 예약 문자입니다."
+            );
         }
 
         if (matched.size() > 1) {
