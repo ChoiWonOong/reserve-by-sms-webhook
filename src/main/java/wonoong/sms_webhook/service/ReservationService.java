@@ -140,8 +140,6 @@ public class ReservationService {
                 event.customerName(),
                 event.customerPhone()
         );
-        String siteId = target.getExternalSiteId();
-
 
         log.info("Camfit 차단 요청: siteId={}", target.getExternalSiteId());
 
