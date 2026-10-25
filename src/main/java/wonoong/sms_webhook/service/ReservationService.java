@@ -55,49 +55,16 @@ public class ReservationService {
             reservation.setSyncStatus(PENDING);
             reservationRepository.saveAndFlush(reservation);
 
-            // 예약이 들어온 플랫폼의 객실 매핑 조회
-            ExternalSite sourceSite = externalSiteRepository
-                    .findByPlatformAndExternalSiteNameAndActiveTrue(
-                            event.platform(),
-                            event.externalSiteName()
-                    )
-                    .orElseThrow(() -> new IllegalStateException(
-                            "외부 객실 매핑을 찾을 수 없습니다. platform="
-                                    + event.platform()
-                                    + ", externalSiteName="
-                                    + event.externalSiteName()
-                    ));
-
-            Platform targetPlatform;
-
             if (event.platform() == Platform.CAMFIT) {
-                targetPlatform = Platform.TRIP_ELEVEN;
+                blockTripEleven(event, reservation);
             } else if (event.platform() == Platform.TRIP_ELEVEN) {
-                targetPlatform = Platform.CAMFIT;
+                blockCamfit(event, reservation);
             } else {
                 throw new IllegalArgumentException(
                         "지원하지 않는 플랫폼입니다: " + event.platform()
                 );
             }
 
-            // 같은 내부 Site에 반대 플랫폼 객실이 있는지 확인
-            boolean targetExists = sourceSite.getSite()
-                    .getExternalSites()
-                    .stream()
-                    .anyMatch(externalSite ->
-                            externalSite.getPlatform() == targetPlatform
-                                    && externalSite.isActive()
-                    );
-
-            if (targetExists) {
-                if (event.platform() == Platform.CAMFIT) {
-                    blockTripEleven(event, reservation);
-                } else {
-                    blockCamfit(event, reservation);
-                }
-            }
-
-            // 반대 플랫폼 객실이 없어도 동기화할 필요가 없다면 성공 처리
             reservation.setEventType(event.eventType());
             reservation.setSyncStatus(SUCCESS);
 
@@ -161,7 +128,7 @@ public class ReservationService {
         log.info("Camfit 차단 요청: siteId={}", target.getExternalSiteId());
 
         String scheduleId = camfitClient.blockSchedule(
-                siteId,
+                target.getExternalSiteId(),
                 startTimestamp,
                 endTimestamp,
                 title
@@ -310,7 +277,7 @@ public class ReservationService {
             Platform targetPlatform
     ) {
         ExternalSite source = externalSiteRepository
-                .findByPlatformAndExternalSiteNameAndActiveTrue(
+                .findByPlatformAndExternalSiteNameAndActiveIsTrue(
                         sourcePlatform,
                         sourceExternalSiteName
                 )
