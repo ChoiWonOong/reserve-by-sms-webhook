@@ -45,9 +45,24 @@ public class Reservation {
     @Column(nullable = false)
     private int nights;
 
+    @Column(name = "adult_count", nullable = false)
+    private int adultCount = 0;
+
+    @Column(name = "child_count", nullable = false)
+    private int childCount = 0;
+
+    @Column(name = "infant_count", nullable = false)
+    private int infantCount = 0;
+
     private String customerName;
 
     private String customerPhone;
+
+    @Column(
+            name = "additional_guest_fee_paid",
+            nullable = false
+    )
+    private boolean additionalGuestFeePaid = false;
 
     // PENDING, SUCCESS, FAILED
     @Column(nullable = false)

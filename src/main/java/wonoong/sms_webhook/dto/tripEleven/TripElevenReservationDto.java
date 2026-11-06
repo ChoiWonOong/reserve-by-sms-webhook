@@ -11,9 +11,11 @@ public class TripElevenReservationDto {
     private String status;
     private String reservationId;
     private String customerName;
+    private String customerPhone;
     private String stayInfo;
     private String amount;
     private int adultCount;
     private int childCount;
     private int infantCount;
+    private boolean additionalGuestFeePaid;
 }

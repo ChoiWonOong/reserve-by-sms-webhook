@@ -2,10 +2,13 @@ package wonoong.sms_webhook.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import wonoong.sms_webhook.dto.tripEleven.TripElevenBlockRequestDto;
-import wonoong.sms_webhook.dto.tripEleven.TripElevenRoomStateRequestDto;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import wonoong.sms_webhook.service.TripElevenService;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/trip-eleven")
@@ -18,22 +21,14 @@ public class TripElevenController {
             @RequestParam String date
     ) {
         tripElevenService.sync(date);
-
         return ResponseEntity.ok().build();
     }
 
-    //    @GetMapping("/sync/today")
-//    public ResponseEntity<List<TripElevenReservationDto>> syncToday() {
-//
-//        List<TripElevenReservationDto> reservations =
-//                tripElevenScrapingService.syncToday();
-//
-//        return ResponseEntity.ok(reservations);
-//    }
     @GetMapping("/sync/today")
-    public ResponseEntity<String> syncToday() {
-        return ResponseEntity.ok(
-                tripElevenService.syncToday().html()
-        );
+    public ResponseEntity<Void> syncToday() {
+        LocalDate today = LocalDate.now();
+
+        tripElevenService.sync(today.toString());
+        return ResponseEntity.ok().build();
     }
 }

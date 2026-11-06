@@ -15,6 +15,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import wonoong.sms_webhook.Config.TripElevenProperties;
+import wonoong.sms_webhook.dto.tripEleven.TripElevenReservationDetailDto;
 import wonoong.sms_webhook.dto.tripEleven.TripElevenReservationDto;
 
 import java.nio.charset.StandardCharsets;
@@ -103,7 +104,38 @@ public class TripElevenClient {
             throw new IllegalStateException("MD5 알고리즘을 사용할 수 없습니다.", e);
         }
     }
+    private record TripElevenResponse(
+            String code,
+            String msg
+    ) {
+    }
+    // 숙소 변경
+    public void changeItem(String itemId) {
 
+        String sessionId = getSessionId();
+
+        MultiValueMap<String, String> formData =
+                new LinkedMultiValueMap<>();
+
+        formData.add("item_id", itemId);
+
+        TripElevenResponse response = restClient.post()
+                .uri("/partner/partner_item_change/")
+                .header(HttpHeaders.COOKIE, "sessionid=" + sessionId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(formData)
+                .retrieve()
+                .body(TripElevenResponse.class);
+
+        if (response == null || !"00".equals(response.code())) {
+            throw new IllegalStateException(
+                    "TripEleven 숙소 변경 실패: itemId=" + itemId
+                            + ", response=" + response
+            );
+        }
+
+        log.info("TripEleven 숙소 변경 성공: itemId={}", itemId);
+    }
     private String getSessionId() {
 
         String sessionId = redisTemplate.opsForValue().get(SESSION_KEY);
@@ -161,13 +193,106 @@ public class TripElevenClient {
     /**
      * 일일 예약 조회
      */
-    public Document getDailyReservations(String date) {
+    public List<TripElevenReservationDto> getDailyReservations(String date) {
 
+        Document document = fetchDailyReservations(date);
+
+        log.info("HTML 제목: {}", document.title());
+        log.info("HTML 크기: {}", document.outerHtml().length());
+        log.info("예약 행 개수: {}", document.select("tr.room_rows").size());
+        log.info("검색 화면 여부: {}", document.selectFirst("#sForm") != null);
+
+        List<TripElevenReservationDto> reservations =
+                parseDailyReservations(document);
+
+        log.info("파싱된 예약 수: {}", reservations.size());
+
+        return reservations;
+    }
+    /**
+     * 특정 예약 상세 조회
+     */
+    public TripElevenReservationDetailDto getReservationDetail(
+            String reservationId
+    ) {
         String sessionId = getSessionId();
 
+        String html = restClient.get()
+                .uri("/partner/resv/view2/?bid=" + reservationId)
+                .header(HttpHeaders.COOKIE, "sessionid=" + sessionId)
+                .retrieve()
+                .body(String.class);
+
+        if (html == null || html.isBlank()) {
+            throw new IllegalStateException(
+                    "예약 상세정보 응답이 비어 있습니다."
+            );
+        }
+
+        return parseReservationDetail(Jsoup.parse(html));
+    }
+
+    private TripElevenReservationDetailDto parseReservationDetail(
+            Document document
+    ) {
+        Element row = document.select("tr.none-hover")
+                .stream()
+                .filter(element -> {
+                    Element firstTd = element.selectFirst("> td");
+
+                    return firstTd != null
+                            && firstTd.hasAttr("rowspan")
+                            && firstTd.text().matches("(?s).*\\d+박.*");
+                })
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "예약 상세정보에서 숙박 정보를 찾을 수 없습니다."
+                ));
+
+        Elements cells = row.select("> td");
+
+        if (cells.size() < 4) {
+            throw new IllegalArgumentException(
+                    "예약 상세정보 HTML 구조가 올바르지 않습니다."
+            );
+        }
+
+        String roomText = cells.get(0).text();
+
+        Matcher nightsMatcher = Pattern.compile("(\\d+)박")
+                .matcher(roomText);
+
+        if (!nightsMatcher.find()) {
+            throw new IllegalArgumentException("숙박 일수 파싱 실패");
+        }
+
+        int nights = Integer.parseInt(nightsMatcher.group(1));
+
+        String dateText = cells.get(3).text();
+
+        Matcher dateMatcher = Pattern.compile(
+                "\\d{4}-\\d{2}-\\d{2}"
+        ).matcher(dateText);
+
+        if (!dateMatcher.find()) {
+            throw new IllegalArgumentException("입실일 파싱 실패");
+        }
+
+        LocalDate checkInDate = LocalDate.parse(dateMatcher.group());
+
+        return new TripElevenReservationDetailDto(
+                checkInDate,
+                checkInDate.plusDays(nights),
+                nights
+        );
+    }
+
+    private Document fetchDailyReservations(String date) {
+
+        String sessionId = getSessionId();
         String csrfToken = getCsrfToken();
 
-        String url = "/partner/resv/main/"
+        String url = "/partner/room_daily/main/"
                 + "?csrfmiddlewaretoken=" + csrfToken
                 + "&bid=" + properties.getBusinessId()
                 + "&room_id="
@@ -188,32 +313,21 @@ public class TripElevenClient {
                 .retrieve()
                 .body(String.class);
 
-        return Jsoup.parse(html);
+        if (html == null || html.isBlank()) {
+            throw new IllegalStateException(
+                    "TripEleven 예약 조회 응답이 비어 있습니다."
+            );
+        }
+
+        Document document = Jsoup.parse(html);
+
+        log.info(
+                "일자별 예약 행 개수: {}",
+                document.select("tr.room_rows").size()
+        );
+
+        return document;
     }
-    /**
-     * 특정 예약 상세 조회
-     */
-    public Document getReservationDetail(String reservationId) {
-
-        String sessionId = getSessionId();
-
-        String url = "/partner/resv/view2/?bid=" + reservationId;
-
-        String html = restClient.get()
-                .uri(url)
-                .header(HttpHeaders.COOKIE, "sessionid=" + sessionId)
-                .retrieve()
-                .body(String.class);
-
-        return Jsoup.parse(html);
-    }
-
-    private void checkLogin() {
-        getSessionId();
-    }
-    /*
-    csrf 토큰 할당
-     */
     private String getCsrfToken() {
 
         String sessionId = getSessionId();
@@ -251,7 +365,14 @@ public class TripElevenClient {
             }
 
             String reservationId = cells.get(2).text();
-            String customerName = cells.get(3).select("div").first().text();
+            Elements customerDivs = cells.get(3).select("div");
+
+            String customerName = customerDivs.get(0).text().trim();
+
+            String customerPhone = customerDivs.size() > 1
+                    ? customerDivs.get(1).text().trim()
+                    : null;
+
             String stayInfo = cells.get(4).text();
             String amount = cells.get(5).text();
 
@@ -263,17 +384,33 @@ public class TripElevenClient {
             int childCount = extractPeopleCount(peopleText, "아동");
             int infantCount = extractPeopleCount(peopleText, "유아");
 
+            boolean additionalGuestFeePaid = false;
+
+            if (cells.size() > 8) {
+
+                additionalGuestFeePaid = cells.get(8)
+                        .select("div")
+                        .stream()
+                        .map(Element::text)
+                        .anyMatch(text ->
+                                text.contains("(펜션전달)")
+                                        && text.contains("결제금액에 추가인원 금액 포함")
+                        );
+            }
+
             reservations.add(
                     TripElevenReservationDto.builder()
                             .roomName(roomName)
                             .status(status)
                             .reservationId(reservationId)
                             .customerName(customerName)
+                            .customerPhone(customerPhone)
                             .stayInfo(stayInfo)
                             .amount(amount)
                             .adultCount(adultCount)
                             .childCount(childCount)
                             .infantCount(infantCount)
+                            .additionalGuestFeePaid(additionalGuestFeePaid)
                             .build()
             );
         }
